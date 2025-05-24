@@ -1,0 +1,200 @@
+// server.js (Express API for OpenAI integration)
+
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import OpenAI from 'openai';
+import { createClient } from '@supabase/supabase-js';
+
+dotenv.config();
+
+const app = express();
+const port = process.env.PORT || 3001;
+
+app.use(cors());
+app.use(express.json());
+
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY
+});  
+
+app.post('/ask-ai-chef', async (req, res) => {
+    console.log('Received request:', req.body)
+  
+    const { question, recipe } = req.body;
+  
+    if (!question || !recipe) {
+      return res.status(400).json({ error: 'Question and recipe are required.' });
+    }
+  
+    // Construct a detailed prompt with recipe context
+    const systemPrompt = `
+  You are a helpful cooking assistant. Use the full recipe context below to answer user questions about substitutions, modifications, or cooking methods.
+  Be clear, concise, and friendly. When suggesting a change, explain how it affects the rest of the recipe.
+  
+  Recipe Title: ${recipe.title}
+  Category: ${recipe.tag}
+  
+  Ingredients:
+  ${recipe.ingredients.map((ing) => `• ${ing}`).join('\n')}
+  
+  Instructions:
+  ${recipe.instructions.map((step, i) => `${i + 1}. ${step}`).join('\n')}
+    `;
+  
+    try {
+      const response = await openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: question }
+        ],
+        temperature: 0.7
+      });
+  
+      const answer = response.choices[0].message.content.trim();
+      console.log('AI response:', answer);
+      res.json({ answer });
+    } catch (err) {
+      console.error('OpenAI error:', err);
+      res.status(500).json({ error: 'Failed to fetch response from AI.' });
+    }
+});
+
+app.get('/api/recipes', async (req, res) => {
+  const { user_id, search, tag } = req.query;
+
+  if (!user_id) {
+    return res.status(400).json({ error: 'user_id is required' });
+  }
+
+  let query = supabase
+    .from('recipes')
+    .select('*')
+    .eq('user_id', user_id);
+
+  // Text search (case-insensitive, partial match)
+  if (search) {
+    query = query.ilike('title', `%${search}%`);
+  }
+
+  // Tag filter (supports single or multiple tags)
+  if (tag) {
+    // If tag is a comma-separated string, split into array
+    const tags = Array.isArray(tag) ? tag : tag.split(',');
+    // Use Postgres array overlap operator
+    query = query.overlaps('tag', tags);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ recipes: data });
+});
+
+app.post('/save-recipe', async (req, res) => {
+  const { recipe } = req.body;
+  console.log('Received recipe:', recipe);
+
+  if (!recipe || !recipe.title) {
+    return res.status(400).json({ error: 'Invalid recipe.' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('recipes')
+      .insert([recipe]);
+
+    if (error) throw error;
+
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('Save recipe error:', err);
+    res.status(500).json({ error: 'Failed to save recipe.' });
+  }
+});
+
+app.post('/inspire-recipes', async (req, res) => {
+    const { prompt } = req.body;
+  
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required.' });
+    }
+  
+    const systemPrompt = `
+    You are an AI sous-chef. Given a prompt from a home cook, return 3 diverse and fun recipe ideas in JSON format. Each recipe must include:
+    - "title" (string): the name of the recipe
+    - "highlight" (string): 1-sentence teaser
+    - "tag" (array of strings): categories like "Dinner", "Vegan", "Snack", "Breakfast"
+    - "ingredients" (array of strings): list of ingredients
+    - "instructions" (array of strings): step-by-step instructions
+    - "nutrition_info" (array of dictionaries): nutrition information for the recipe
+    
+    Respond ONLY with a JSON array of 3 objects, like this:
+    
+    [
+      {
+        "title": "Avocado Toast Deluxe",
+        "highlight": "A savory toast with creamy avocado, chili flakes, and lime.",
+        "tag": ["Breakfast", "Snack"],
+        "ingredients": ["2 slices bread", "1 avocado", "1/2 lime", "Salt", "Chili flakes"],
+        "instructions": [
+          "Toast the bread.",
+          "Mash the avocado with lime and salt.",
+          "Spread on toast and sprinkle chili flakes."
+        ],
+        "nutrition_info": [
+          {
+            "calories": 200,
+            "protein": 5,
+            "carbs": 30,
+            "fat": 10,
+            "fiber": 2,
+            "sugar": 1,
+            "sodium": 100
+          }
+        ]
+      }
+    ]
+    
+    User prompt: ${prompt}
+    `;
+  
+    try {
+      const response = await openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.8
+      });
+  
+      const rawText = response.choices[0].message.content.trim();
+  
+      let recipes;
+      try {
+        recipes = JSON.parse(rawText);
+      } catch (err) {
+        console.error('JSON parse error:', err);
+        return res.status(500).json({ error: 'Failed to parse AI response.' });
+      }
+  
+      res.json({ recipes });
+    } catch (err) {
+      console.error('OpenAI error:', err);
+      res.status(500).json({ error: 'Failed to generate recipe inspiration.' });
+    }
+  });
+  
+  
+  
+
+app.listen(port, () => {
+  console.log(`AI Chef backend running on http://localhost:${port}`);
+});
