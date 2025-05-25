@@ -14,7 +14,7 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
@@ -95,6 +95,76 @@ app.get('/api/recipes', async (req, res) => {
   }
 
   res.json({ recipes: data });
+});
+
+app.post('/favorite-recipe', async (req, res) => {
+  const { user_id, recipe_id } = req.body;
+  console.log('Received favorite recipe:', req.body);
+
+  if (!user_id || !recipe_id) {
+    return res.status(400).json({ error: 'Missing user_id or recipe_id.' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('favorites')
+      .insert([{ user_id, recipe_id }]);
+
+    if (error) throw error;
+
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('Favorite recipe error:', err);
+    res.status(500).json({ error: 'Failed to favorite recipe.' });
+  }
+});
+
+app.delete('/favorite-recipe', async (req, res) => {
+  const { user_id, recipe_id } = req.body;
+
+  if (!user_id || !recipe_id) {
+    return res.status(400).json({ error: 'Missing user_id or recipe_id.' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('favorites')
+      .delete()
+      .eq('user_id', user_id)
+      .eq('recipe_id', recipe_id);
+
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Unfavorite recipe error:', err);
+    res.status(500).json({ error: 'Failed to unfavorite recipe.' });
+  }
+});
+
+app.post('/favorite-recipe-check', async (req, res) => {
+  const { user_id, recipe_id } = req.body;
+  console.log('Received favorite check:', req.body);
+
+  if (!user_id || !recipe_id) {
+    return res.status(400).json({ error: 'Missing user_id or recipe_id.' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('favorites')
+      .select('id')
+      .eq('user_id', user_id)
+      .eq('recipe_id', recipe_id)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    res.json({ isFavorited: !!data });
+  } catch (err) {
+    console.error('Favorite check error:', err);
+    res.status(500).json({ error: 'Failed to check favorite status.' });
+  }
 });
 
 app.post('/save-recipe', async (req, res) => {
@@ -192,8 +262,125 @@ app.post('/inspire-recipes', async (req, res) => {
     }
   });
   
-  
-  
+app.get('/api/favorite-recipes', async (req, res) => {
+  const { user_id, search, tag } = req.query;
+
+  if (!user_id) {
+    return res.status(400).json({ error: 'user_id is required' });
+  }
+
+  let query = supabase
+    .from('favorites')
+    .select(`
+      recipe_id,
+      recipes (
+        id,
+        title,
+        tag,
+        ingredients,
+        instructions,
+        nutrition_info,
+        user_id,
+        created_at
+      )
+    `)
+    .eq('user_id', user_id);
+
+  const { data, error } = await query;
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  // Transform the data to flatten the nested structure
+  const favoriteRecipes = data.map(fav => fav.recipes);
+
+  // Apply search filter if provided
+  let filteredRecipes = favoriteRecipes;
+  if (search) {
+    filteredRecipes = favoriteRecipes.filter(recipe => 
+      recipe.title.toLowerCase().includes(search.toLowerCase())
+    );
+  }
+
+  // Apply tag filter if provided
+  if (tag) {
+    const tags = Array.isArray(tag) ? tag : tag.split(',');
+    filteredRecipes = filteredRecipes.filter(recipe => 
+      tags.some(t => recipe.tag.includes(t))
+    );
+  }
+
+  res.json({ recipes: filteredRecipes });
+});
+
+app.post('/analyze-recipe-image', async (req, res) => {
+  const { image } = req.body;
+
+  if (!image) {
+    return res.status(400).json({ error: 'Image data is required.' });
+  }
+
+  // Remove the data URL prefix if present (e.g., "data:image/jpeg;base64,")
+  const base64Image = image.replace(/^data:image\/\w+;base64,/, '');
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4-vision-preview",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Analyze this recipe image and extract the following information in JSON format:
+              {
+                "title": "Recipe name",
+                "ingredients": ["list of ingredients"],
+                "instructions": ["step by step instructions"],
+                "tag": ["category tags like Dinner, Breakfast, etc."],
+                "nutrition_info": [{
+                  "calories": number,
+                  "protein": number,
+                  "carbs": number,
+                  "fat": number,
+                  "fiber": number,
+                  "sugar": number,
+                  "sodium": number
+                }]
+              }
+              
+              If any information is not visible in the image, use null for that field.`
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:image/jpeg;base64,${base64Image}`
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 1000
+    });
+
+    const content = response.choices[0].message.content;
+    
+    // Parse the JSON response
+    let recipeData;
+    try {
+      recipeData = JSON.parse(content);
+    } catch (err) {
+      console.error('JSON parse error:', err);
+      return res.status(500).json({ error: 'Failed to parse recipe data from image.' });
+    }
+
+    res.json({ recipe: recipeData });
+  } catch (err) {
+    console.error('OpenAI Vision API error:', err);
+    res.status(500).json({ error: 'Failed to analyze recipe image.' });
+  }
+});
 
 app.listen(port, () => {
   console.log(`AI Chef backend running on http://localhost:${port}`);
