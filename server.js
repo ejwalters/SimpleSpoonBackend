@@ -167,8 +167,39 @@ app.post('/favorite-recipe-check', async (req, res) => {
   }
 });
 
+// Helper function to upload image to Supabase Storage
+const uploadImageToStorage = async (base64Image, userId, recipeId, imageType) => {
+  try {
+    // Remove the data URL prefix if present
+    const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
+    // Generate a unique filename
+    const timestamp = Date.now();
+    const filename = `${userId}/${recipeId}/${imageType}_${timestamp}.jpg`;
+
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('recipe-images')
+      .upload(filename, base64Data, {
+        contentType: 'image/jpeg',
+        upsert: true
+      });
+
+    if (error) throw error;
+
+    // Get the public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('recipe-images')
+      .getPublicUrl(filename);
+
+    return publicUrl;
+  } catch (err) {
+    console.error('Image upload error:', err);
+    throw err;
+  }
+};
+
 app.post('/save-recipe', async (req, res) => {
-  const { recipe } = req.body;
+  const { recipe, mainImage, supportingImages } = req.body;
   console.log('Received recipe:', recipe);
 
   if (!recipe || !recipe.title) {
@@ -176,13 +207,52 @@ app.post('/save-recipe', async (req, res) => {
   }
 
   try {
-    const { data, error } = await supabase
+    // First, insert the recipe to get the recipe ID
+    const { data: recipeData, error: recipeError } = await supabase
       .from('recipes')
-      .insert([recipe]);
+      .insert([{
+        ...recipe,
+        image: null, // Will be updated after image upload
+        supporting_images: [] // Will be updated after image uploads
+      }])
+      .select()
+      .single();
 
-    if (error) throw error;
+    if (recipeError) throw recipeError;
 
-    res.json({ success: true, data });
+    const recipeId = recipeData.id;
+    const userId = recipe.user_id;
+
+    // Upload main image if provided
+    let mainImageUrl = null;
+    if (mainImage) {
+      mainImageUrl = await uploadImageToStorage(mainImage, userId, recipeId, 'main');
+    }
+
+    // Upload supporting images if provided
+    let supportingImageUrls = [];
+    if (supportingImages && supportingImages.length > 0) {
+      supportingImageUrls = await Promise.all(
+        supportingImages.map((image, index) => 
+          uploadImageToStorage(image, userId, recipeId, `support_${index}`)
+        )
+      );
+    }
+
+    // Update the recipe with image URLs
+    const { data: updatedRecipe, error: updateError } = await supabase
+      .from('recipes')
+      .update({
+        image: mainImageUrl,
+        supporting_images: supportingImageUrls
+      })
+      .eq('id', recipeId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    res.json({ success: true, data: updatedRecipe });
   } catch (err) {
     console.error('Save recipe error:', err);
     res.status(500).json({ error: 'Failed to save recipe.' });
