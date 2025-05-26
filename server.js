@@ -199,7 +199,7 @@ const uploadImageToStorage = async (base64Image, userId, recipeId, imageType) =>
 };
 
 app.post('/save-recipe', async (req, res) => {
-  const { recipe, image, supportingImages } = req.body;
+  const { recipe } = req.body;
   console.log('Received recipe:', recipe);
 
   if (!recipe || !recipe.title) {
@@ -207,15 +207,10 @@ app.post('/save-recipe', async (req, res) => {
   }
 
   try {
-    // Insert the recipe with image URLs
-    console.log('IMAGE:', recipe.image);
+    // Insert the recipe as-is (it should already have image and supporting_images fields)
     const { data, error } = await supabase
       .from('recipes')
-      .insert([{
-        ...recipe,
-        image: image || null, // main image URL
-        supporting_images: supportingImages || [] // array of supporting image URLs
-      }])
+      .insert([recipe])
       .select();
 
     if (error) throw error;
