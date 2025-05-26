@@ -199,7 +199,7 @@ const uploadImageToStorage = async (base64Image, userId, recipeId, imageType) =>
 };
 
 app.post('/save-recipe', async (req, res) => {
-  const { recipe, mainImage, supportingImages } = req.body;
+  const { recipe, image, supportingImages } = req.body;
   console.log('Received recipe:', recipe);
 
   if (!recipe || !recipe.title) {
@@ -207,52 +207,19 @@ app.post('/save-recipe', async (req, res) => {
   }
 
   try {
-    // First, insert the recipe to get the recipe ID
-    const { data: recipeData, error: recipeError } = await supabase
+    // Insert the recipe with image URLs
+    const { data, error } = await supabase
       .from('recipes')
       .insert([{
         ...recipe,
-        image: null, // Will be updated after image upload
-        supporting_images: [] // Will be updated after image uploads
+        image: image || null, // main image URL
+        supporting_images: supportingImages || [] // array of supporting image URLs
       }])
-      .select()
-      .single();
+      .select();
 
-    if (recipeError) throw recipeError;
+    if (error) throw error;
 
-    const recipeId = recipeData.id;
-    const userId = recipe.user_id;
-
-    // Upload main image if provided
-    let mainImageUrl = null;
-    if (mainImage) {
-      mainImageUrl = await uploadImageToStorage(mainImage, userId, recipeId, 'main');
-    }
-
-    // Upload supporting images if provided
-    let supportingImageUrls = [];
-    if (supportingImages && supportingImages.length > 0) {
-      supportingImageUrls = await Promise.all(
-        supportingImages.map((image, index) => 
-          uploadImageToStorage(image, userId, recipeId, `support_${index}`)
-        )
-      );
-    }
-
-    // Update the recipe with image URLs
-    const { data: updatedRecipe, error: updateError } = await supabase
-      .from('recipes')
-      .update({
-        image: mainImageUrl,
-        supporting_images: supportingImageUrls
-      })
-      .eq('id', recipeId)
-      .select()
-      .single();
-
-    if (updateError) throw updateError;
-
-    res.json({ success: true, data: updatedRecipe });
+    res.json({ success: true, data });
   } catch (err) {
     console.error('Save recipe error:', err);
     res.status(500).json({ error: 'Failed to save recipe.' });
