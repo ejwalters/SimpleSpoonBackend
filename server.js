@@ -208,7 +208,7 @@ app.post('/save-recipe', async (req, res) => {
 
   try {
     // Insert the recipe with image URLs
-    console.log('IMAGE:', image);
+    console.log('IMAGE:', recipe.image);
     const { data, error } = await supabase
       .from('recipes')
       .insert([{
