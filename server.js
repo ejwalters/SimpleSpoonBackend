@@ -254,12 +254,13 @@ app.post('/inspire-recipes', async (req, res) => {
         "nutrition_info":
           {
             "calories": 200,
-            "protein": 5,
-            "carbs": 30,
-            "fat": 10,
-            "fiber": 2,
-            "sugar": 1,
-            "sodium": 100
+            "fat": 5,
+            "cholesterol": 30,
+            "sodium": 10,
+            "carbs": 2,
+            "fiber": 1,
+            "sugar": 100,
+            "protein": 5
           }
       }
     ]
