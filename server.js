@@ -314,6 +314,9 @@ app.get('/api/favorite-recipes', async (req, res) => {
         instructions,
         nutrition_info,
         user_id,
+        highlight,
+        image,
+        supporting_images,
         created_at
       )
     `)
