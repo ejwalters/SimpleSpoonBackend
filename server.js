@@ -236,7 +236,7 @@ app.post('/inspire-recipes', async (req, res) => {
     - "tag" (array of strings): categories like "Dinner", "Vegan", "Snack", "Breakfast"
     - "ingredients" (array of strings): list of ingredients
     - "instructions" (array of strings): step-by-step instructions
-    - "nutrition_info" (array of dictionaries): nutrition information for the recipe
+    - "nutrition_info" (Return the nutrition_info as a single flat JSON object (not an array or list)): nutrition information for the recipe
     
     Respond ONLY with a JSON array of 3 objects, like this:
     
@@ -251,7 +251,7 @@ app.post('/inspire-recipes', async (req, res) => {
           "Mash the avocado with lime and salt.",
           "Spread on toast and sprinkle chili flakes."
         ],
-        "nutrition_info": [
+        "nutrition_info":
           {
             "calories": 200,
             "protein": 5,
@@ -261,7 +261,6 @@ app.post('/inspire-recipes', async (req, res) => {
             "sugar": 1,
             "sodium": 100
           }
-        ]
       }
     ]
     
