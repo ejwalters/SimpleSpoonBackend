@@ -350,6 +350,29 @@ app.get('/api/favorite-recipes', async (req, res) => {
   res.json({ recipes: filteredRecipes });
 });
 
+app.patch('/update-recipe', async (req, res) => {
+  const { id, ...fieldsToUpdate } = req.body;
+
+  if (!id) {
+    return res.status(400).json({ error: 'Recipe id is required.' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('recipes')
+      .update(fieldsToUpdate)
+      .eq('id', id)
+      .select();
+
+    if (error) throw error;
+
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('Update recipe error:', err);
+    res.status(500).json({ error: 'Failed to update recipe.' });
+  }
+});
+
 app.post('/analyze-recipe-image', async (req, res) => {
   const { image } = req.body;
 
