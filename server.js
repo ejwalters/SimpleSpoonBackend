@@ -406,7 +406,7 @@ If a field is missing, leave it empty or as an empty array/object.
           role: 'user',
           content: [
             { type: 'text', text: 'Extract the recipe details from this image.' },
-            { type: 'image_url', image_url: `data:image/jpeg;base64,${imageData}` },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageData}` } },
           ],
         },
       ],
