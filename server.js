@@ -5,6 +5,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
+import multer from 'multer';
+import fs from 'fs';
 
 dotenv.config();
 
