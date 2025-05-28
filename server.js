@@ -396,7 +396,7 @@ If a field is missing, leave it empty or as an empty array/object.
 `;
 
     const response = await openai.chat.completions.create({
-      model: 'gpt-4-vision-preview', // or 'gpt-4o'
+      model: 'gpt-4o',
       messages: [
         {
           role: 'system',
