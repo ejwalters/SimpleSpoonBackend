@@ -384,7 +384,7 @@ app.post('/analyze-recipe-image', upload.single('file'), async (req, res) => {
     const imageData = fs.readFileSync(filePath, { encoding: 'base64' });
 
     const prompt = `
-You are a recipe extraction assistant. Given a photo of a physical recipe, recipe card, or prepared food, extract as much structured information as possible. 
+You are a recipe extraction assistant. Given a photo of a physical recipe, recipe card, or prepared food, extract as much structured information as possible. Whatever you cannot extract explicitly, try to infer from the context. For instance, estimating nutritio info or generating a title or highlight for the recipe.
 Return a JSON object with the following fields:
 - title (string)
 - highlight (string, a short description or what makes it special)
