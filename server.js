@@ -441,6 +441,38 @@ app.post('/analyze-recipe-image', async (req, res) => {
   }
 });
 
+app.delete('/delete-recipe', async (req, res) => {
+  const { id } = req.body; // recipe id
+
+  if (!id) {
+    return res.status(400).json({ error: 'Recipe id is required.' });
+  }
+
+  try {
+    // 1. Delete from favorites
+    const { error: favError } = await supabase
+      .from('favorites')
+      .delete()
+      .eq('recipe_id', id);
+
+    if (favError) throw favError;
+
+    // 2. Delete from recipes
+    const { data, error } = await supabase
+      .from('recipes')
+      .delete()
+      .eq('id', id)
+      .select();
+
+    if (error) throw error;
+
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('Delete recipe error:', err);
+    res.status(500).json({ error: 'Failed to delete recipe.' });
+  }
+});
+
 app.listen(port, () => {
   console.log(`AI Chef backend running on http://localhost:${port}`);
 });
