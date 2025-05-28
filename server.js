@@ -383,19 +383,24 @@ app.post('/analyze-recipe-image', upload.single('file'), async (req, res) => {
     // 1. Use OpenAI Vision (GPT-4o or GPT-4 with vision) to analyze the image
     const imageData = fs.readFileSync(filePath, { encoding: 'base64' });
 
-    const prompt = `
-You are a recipe extraction assistant. You will be given a photo of a physical recipe, recipe card, handwritten note, or a photo of prepared food. Your job is to extract as much structured information as possible from the image. If a specific detail is not explicitly present, infer it using context, visual clues, or general cooking knowledge.
+    const prompt = `You are a recipe extraction assistant. You will be given a photo of a physical recipe, handwritten card, or prepared food. Your task is to extract structured information from the image and infer any missing details using context and general cooking knowledge.
 
 Return a JSON object with the following fields:
-- title (string): A clear recipe title. Infer if not provided.
-- highlight (string): A short, engaging description of what makes this recipe special, interesting, or unique. Use tone appropriate to the image and recipe style.
-- ingredients (array of strings): A list of ingredients. Use the best judgment if the list is incomplete or implied.
-- instructions (array of strings): Step-by-step cooking instructions. If instructions are missing, reconstruct plausible steps based on standard preparation for the type of recipe shown.
-- nutrition_info (object): Estimated nutritional information. Include the following keys: calories, fat, cholesterol, sodium, carbs, fiber, sugar, protein. Use string values (e.g., "120 kcal", "5g"). Leave fields empty ("") if they cannot be reasonably estimated.
+- title (string): A clear, concise recipe title. Infer if not explicitly stated.
+- highlight (string): A short description of what makes the recipe special or unique.
+- ingredients (array of strings): List of ingredients. Infer any that are implied but not explicitly listed.
+- instructions (array of strings): Step-by-step instructions. Reconstruct plausible steps if missing.
+- nutrition_info (object): Always provide estimated nutritional values for a standard serving, even if the recipe doesn't list them. Use general knowledge or typical values for similar recipes. Include the following keys, and provide a value for each (as a string with units where appropriate):
+  - "calories": 200,
+  - "fat": 10,
+  - "cholesterol": 30,
+  - "sodium": 20,
+  - "carbs": 20,
+  - "fiber": 20,
+  - "sugar": 5,
+  - "protein": 10
 
-If any field is completely unavailable and cannot be inferred, return it as an empty string, array, or object accordingly.
-
-Always return **only** the JSON response.
+Always return all fields. Do not leave any field blank, null, or empty — infer the best possible estimate when necessary. Return only the JSON object.
 `;
 
     const response = await openai.chat.completions.create({
