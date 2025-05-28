@@ -441,7 +441,7 @@ app.post('/analyze-recipe-image', async (req, res) => {
   }
 });
 
-app.delete('/delete-recipe', async (req, res) => {
+app.post('/delete-recipe', async (req, res) => {
   const { id } = req.body; // recipe id
   console.log('Deleting recipe:', id);
 
