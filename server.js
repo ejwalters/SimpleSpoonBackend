@@ -390,17 +390,18 @@ Return a JSON object with the following fields:
 - highlight (string): A short description of what makes the recipe special or unique.
 - ingredients (array of strings): List of ingredients. Infer any that are implied but not explicitly listed.
 - instructions (array of strings): Step-by-step instructions. Reconstruct plausible steps if missing.
-- nutrition_info (object): Always provide estimated nutritional values for a standard serving, even if the recipe doesn't list them. Use general knowledge or typical values for similar recipes. Include the following keys, and provide a value for each (as a string with units where appropriate):
-  - "calories": 200,
-  - "fat": 10,
-  - "cholesterol": 30,
-  - "sodium": 20,
-  - "carbs": 20,
-  - "fiber": 20,
-  - "sugar": 5,
-  - "protein": 10
+- nutrition_info (object): Always include estimated nutritional values for a standard serving, even if the recipe does not provide them. Use general knowledge or typical values for similar recipes. Include the following keys, and provide a **plain number** as a string for each (no units or suffixes):
 
-Always return all fields. Do not leave any field blank, null, or empty — infer the best possible estimate when necessary. Return only the JSON object.
+  - calories (e.g. "220")
+  - fat (e.g. "10")
+  - cholesterol (e.g. "30")
+  - sodium (e.g. "250")
+  - carbs (e.g. "28")
+  - fiber (e.g. "2")
+  - sugar (e.g. "5")
+  - protein (e.g. "6")
+
+**Do not leave any field blank, null, or empty**. Infer reasonable estimates for every field when information is missing. Return **only the JSON object**.
 `;
 
     const response = await openai.chat.completions.create({
