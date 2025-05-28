@@ -373,71 +373,59 @@ app.patch('/update-recipe', async (req, res) => {
   }
 });
 
-app.post('/analyze-recipe-image', async (req, res) => {
-  const { image } = req.body;
-
-  if (!image) {
-    return res.status(400).json({ error: 'Image data is required.' });
-  }
-
-  // Remove the data URL prefix if present (e.g., "data:image/jpeg;base64,")
-  const base64Image = image.replace(/^data:image\/\w+;base64,/, '');
-
+app.post('/analyze-recipe-image', upload.single('file'), async (req, res) => {
   try {
+    const filePath = req.file.path;
+
+    // 1. Use OpenAI Vision (GPT-4o or GPT-4 with vision) to analyze the image
+    const imageData = fs.readFileSync(filePath, { encoding: 'base64' });
+
+    const prompt = `
+You are a recipe extraction assistant. Given a photo of a physical recipe, recipe card, or prepared food, extract as much structured information as possible. 
+Return a JSON object with the following fields:
+- title (string)
+- highlight (string, a short description or what makes it special)
+- ingredients (array of strings)
+- instructions (array of strings, each step)
+- nutrition_info (object with keys: calories, fat, cholesterol, sodium, carbs, fiber, sugar, protein; values as strings or empty if not found)
+
+If a field is missing, leave it empty or as an empty array/object.
+`;
+
     const response = await openai.chat.completions.create({
-      model: "gpt-4-vision-preview",
+      model: 'gpt-4-vision-preview', // or 'gpt-4o'
       messages: [
         {
-          role: "user",
+          role: 'system',
+          content: prompt,
+        },
+        {
+          role: 'user',
           content: [
-            {
-              type: "text",
-              text: `Analyze this recipe image and extract the following information in JSON format:
-              {
-                "title": "Recipe name",
-                "ingredients": ["list of ingredients"],
-                "instructions": ["step by step instructions"],
-                "tag": ["category tags like Dinner, Breakfast, etc."],
-                "nutrition_info": [{
-                  "calories": number,
-                  "protein": number,
-                  "carbs": number,
-                  "fat": number,
-                  "fiber": number,
-                  "sugar": number,
-                  "sodium": number
-                }]
-              }
-              
-              If any information is not visible in the image, use null for that field.`
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:image/jpeg;base64,${base64Image}`
-              }
-            }
-          ]
-        }
+            { type: 'text', text: 'Extract the recipe details from this image.' },
+            { type: 'image_url', image_url: `data:image/jpeg;base64,${imageData}` },
+          ],
+        },
       ],
-      max_tokens: 1000
+      max_tokens: 800,
     });
 
-    const content = response.choices[0].message.content;
-    
-    // Parse the JSON response
-    let recipeData;
+    // Parse the JSON from the model's response
+    let extracted = {};
     try {
-      recipeData = JSON.parse(content);
-    } catch (err) {
-      console.error('JSON parse error:', err);
-      return res.status(500).json({ error: 'Failed to parse recipe data from image.' });
+      const text = response.choices[0].message.content;
+      extracted = JSON.parse(text.match(/\{[\s\S]*\}/)[0]);
+    } catch (e) {
+      return res.status(500).json({ error: 'Failed to parse AI response.' });
     }
 
-    res.json({ recipe: recipeData });
+    // Clean up uploaded file
+    fs.unlinkSync(filePath);
+
+    res.json(extracted);
   } catch (err) {
-    console.error('OpenAI Vision API error:', err);
-    res.status(500).json({ error: 'Failed to analyze recipe image.' });
+    console.error(err);
+    res.status(500).json({ error: 'Failed to analyze image.' });
   }
 });
 
