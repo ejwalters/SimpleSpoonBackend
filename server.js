@@ -384,15 +384,18 @@ app.post('/analyze-recipe-image', upload.single('file'), async (req, res) => {
     const imageData = fs.readFileSync(filePath, { encoding: 'base64' });
 
     const prompt = `
-You are a recipe extraction assistant. Given a photo of a physical recipe, recipe card, or prepared food, extract as much structured information as possible. Whatever you cannot extract explicitly, try to infer from the context. For instance, estimating nutritio info or generating a title or highlight for the recipe.
-Return a JSON object with the following fields:
-- title (string)
-- highlight (string, a short description or what makes it special)
-- ingredients (array of strings)
-- instructions (array of strings, each step)
-- nutrition_info (object with keys: calories, fat, cholesterol, sodium, carbs, fiber, sugar, protein; values as strings or empty if not found)
+You are a recipe extraction assistant. You will be given a photo of a physical recipe, recipe card, handwritten note, or a photo of prepared food. Your job is to extract as much structured information as possible from the image. If a specific detail is not explicitly present, infer it using context, visual clues, or general cooking knowledge.
 
-If a field is missing, leave it empty or as an empty array/object.
+Return a JSON object with the following fields:
+- title (string): A clear recipe title. Infer if not provided.
+- highlight (string): A short, engaging description of what makes this recipe special, interesting, or unique. Use tone appropriate to the image and recipe style.
+- ingredients (array of strings): A list of ingredients. Use the best judgment if the list is incomplete or implied.
+- instructions (array of strings): Step-by-step cooking instructions. If instructions are missing, reconstruct plausible steps based on standard preparation for the type of recipe shown.
+- nutrition_info (object): Estimated nutritional information. Include the following keys: calories, fat, cholesterol, sodium, carbs, fiber, sugar, protein. Use string values (e.g., "120 kcal", "5g"). Leave fields empty ("") if they cannot be reasonably estimated.
+
+If any field is completely unavailable and cannot be inferred, return it as an empty string, array, or object accordingly.
+
+Always return **only** the JSON response.
 `;
 
     const response = await openai.chat.completions.create({
