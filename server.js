@@ -448,6 +448,8 @@ app.delete('/delete-recipe', async (req, res) => {
     return res.status(400).json({ error: 'Recipe id is required.' });
   }
 
+  console.log('Deleting recipe:', id);
+
   try {
     // 1. Delete from favorites
     const { error: favError } = await supabase
