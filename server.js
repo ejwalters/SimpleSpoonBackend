@@ -443,12 +443,13 @@ app.post('/analyze-recipe-image', async (req, res) => {
 
 app.delete('/delete-recipe', async (req, res) => {
   const { id } = req.body; // recipe id
+  console.log('Deleting recipe:', id);
 
   if (!id) {
     return res.status(400).json({ error: 'Recipe id is required.' });
   }
 
-  console.log('Deleting recipe:', id);
+  
 
   try {
     // 1. Delete from favorites
